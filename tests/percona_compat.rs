@@ -406,3 +406,51 @@ fn in_and_values_lists_are_collapsed() {
         assert_eq!(actual, expected, "query: {query}");
     }
 }
+
+#[test]
+fn repeated_unions_are_collapsed() {
+    let cases = [
+        (
+            "SELECT a FROM t UNION SELECT a FROM t",
+            "select a from t /*repeat union*/",
+        ),
+        (
+            "SELECT a FROM t UNION ALL SELECT a FROM t",
+            "select a from t /*repeat union all*/",
+        ),
+        (
+            "SELECT a FROM t UNION SELECT a FROM t UNION SELECT a FROM t",
+            "select a from t /*repeat union*/",
+        ),
+        (
+            "SELECT a FROM t UNION SELECT a FROM t UNION ALL SELECT a FROM t",
+            "select a from t /*repeat union all*/",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
+fn non_repeated_unions_are_preserved() {
+    let cases = [
+        (
+            "SELECT a FROM t UNION SELECT b FROM t",
+            "select a from t union select b from t",
+        ),
+        (
+            "DELETE FROM t UNION DELETE FROM t",
+            "delete from t union delete from t",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}

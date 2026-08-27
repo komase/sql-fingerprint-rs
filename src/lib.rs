@@ -74,6 +74,9 @@ static LIST_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("IN and VALUES list regex must be valid")
 });
 
+static UNION_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r" union(?: all)? ").expect("union regex must be valid"));
+
 fn is_mysqldump(query: &str) -> bool {
     query.starts_with("SELECT /*!40001 SQL_NO_CACHE */ * FROM `")
 }
@@ -112,6 +115,40 @@ fn use_fingerprint(query: &str) -> Option<String> {
     } else {
         Some("use ?".to_string())
     }
+}
+
+fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
+    let mut separators = UNION_RE.find_iter(query);
+    let Some(first_separator) = separators.next() else {
+        return Cow::Borrowed(query);
+    };
+
+    let candidate = &query[..first_separator.start()];
+    if !candidate.starts_with("select ") {
+        return Cow::Borrowed(query);
+    }
+
+    let after_separator = &query[first_separator.end()..];
+    if !after_separator.starts_with(candidate) {
+        return Cow::Borrowed(query);
+    }
+    let mut cursor = first_separator.end() + candidate.len();
+    let mut operator = first_separator.as_str().trim();
+
+    for separator in separators {
+        if separator.start() != cursor {
+            break;
+        }
+        let after_separator = &query[separator.end()..];
+        if !after_separator.starts_with(candidate) {
+            break;
+        }
+        cursor = separator.end() + candidate.len();
+        operator = separator.as_str().trim();
+    }
+
+    let suffix = &query[cursor..];
+    Cow::Owned(format!("{candidate} /*repeat {operator}*/{suffix}"))
 }
 
 // Preserve line endings and reject comment candidates containing quotes.
@@ -246,7 +283,8 @@ impl Fingerprinter {
         }
         fingerprint.make_ascii_lowercase();
         let fingerprint = NULL_RE.replace_all(&fingerprint, "?").into_owned();
-        LIST_RE.replace_all(&fingerprint, "${1}(?+)").into_owned()
+        let fingerprint = LIST_RE.replace_all(&fingerprint, "${1}(?+)").into_owned();
+        collapse_repeated_union(&fingerprint).into_owned()
     }
 }
 
