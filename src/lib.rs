@@ -1,3 +1,12 @@
+#![warn(missing_docs)]
+
+//! Percona-compatible SQL query fingerprinting.
+//!
+//! This crate normalizes SQL text so structurally similar queries can be
+//! grouped together. It follows the fingerprinting behavior of Percona
+//! Toolkit's `pt-fingerprint`; it is not a SQL parser and does not guarantee
+//! that every sensitive value is removed.
+
 use regex::Regex;
 use std::{borrow::Cow, sync::LazyLock};
 
@@ -267,6 +276,9 @@ fn remove_order_by_asc(query: &str) -> Cow<'_, str> {
     }
 }
 
+/// Options that control optional fingerprint matching behavior.
+///
+/// All options are disabled by default.
 #[derive(Default)]
 pub struct FingerprintOptions {
     match_md5_checksums: bool,
@@ -274,25 +286,50 @@ pub struct FingerprintOptions {
 }
 
 impl FingerprintOptions {
+    /// Configures whether numbers embedded in identifiers are preserved.
+    ///
+    /// When enabled, only numbers beginning at an ASCII word boundary are
+    /// replaced. For example, the number in `catch22` is preserved.
     pub fn with_match_embedded_numbers(mut self, match_embedded_numbers: bool) -> Self {
         self.match_embedded_numbers = match_embedded_numbers;
         self
     }
 
+    /// Configures whether lowercase 32-character MD5 checksums are matched as
+    /// single values.
     pub fn with_match_md5_checksums(mut self, match_md5_checksums: bool) -> Self {
         self.match_md5_checksums = match_md5_checksums;
         self
     }
 }
+
+/// A reusable SQL fingerprinter with fixed matching options.
 pub struct Fingerprinter {
     options: FingerprintOptions,
 }
 
 impl Fingerprinter {
+    /// Creates a fingerprinter with the supplied options.
     pub fn new(options: FingerprintOptions) -> Self {
         Self { options }
     }
 
+    /// Produces a fingerprint for one SQL query.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sql_fingerprint::{FingerprintOptions, Fingerprinter};
+    ///
+    /// let options = FingerprintOptions::default()
+    ///     .with_match_embedded_numbers(true);
+    /// let fingerprinter = Fingerprinter::new(options);
+    ///
+    /// assert_eq!(
+    ///     fingerprinter.fingerprint("SELECT catch22, id FROM users WHERE id = 42"),
+    ///     "select catch22, id from users where id = ?"
+    /// );
+    /// ```
     pub fn fingerprint(&self, query: &str) -> String {
         if is_mysqldump(query) {
             return "mysqldump".to_string();
@@ -363,6 +400,18 @@ impl Fingerprinter {
     }
 }
 
+/// Produces a fingerprint using the default matching options.
+///
+/// # Examples
+///
+/// ```
+/// use sql_fingerprint::fingerprint;
+///
+/// assert_eq!(
+///     fingerprint("SELECT * FROM users WHERE id = 42"),
+///     "select * from users where id = ?"
+/// );
+/// ```
 pub fn fingerprint(query: &str) -> String {
     let fingerprinter = Fingerprinter::new(FingerprintOptions::default());
     fingerprinter.fingerprint(query)
