@@ -5,7 +5,8 @@ static NUMBER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[0-9+-][0-9a-f.xb+-]*").expect("number regex must be valid"));
 
 static NUMBER_WITH_WORD_BOUNDARY_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\b[0-9+-][0-9a-f.xb+-]*").expect("number with word boundary regex must be valid")
+    Regex::new(r"(?-u:\b)[0-9+-][0-9a-f.xb+-]*")
+        .expect("number with word boundary regex must be valid")
 });
 
 static MD5_RE: LazyLock<Regex> =
@@ -63,14 +64,14 @@ static SINGLE_QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static BOOLEAN_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(?:false|true)\b").expect("boolean literal regex must be valid")
+    Regex::new(r"(?i)(?-u:\b)(?:false|true)(?-u:\b)").expect("boolean literal regex must be valid")
 });
 
 static NULL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\bnull\b").expect("null regex must be valid"));
+    LazyLock::new(|| Regex::new(r"(?-u:\b)null(?-u:\b)").expect("null regex must be valid"));
 
 static LIST_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\b(in|values?)(?:[\s,]*\([\s?,]*\))+")
+    Regex::new(r"(?-u:\b)(in|values?)(?:[\s,]*\([\s?,]*\))+")
         .expect("IN and VALUES list regex must be valid")
 });
 
@@ -78,14 +79,14 @@ static UNION_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r" union(?: all)? ").expect("union regex must be valid"));
 
 static SELECT_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\bselect ").expect("select regex must be valid"));
+    LazyLock::new(|| Regex::new(r"(?-u:\b)select ").expect("select regex must be valid"));
 
 static LIMIT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\blimit \?(?:, ?\?| offset \?)?").expect("limit regex must be valid")
+    Regex::new(r"(?-u:\b)limit \?(?:, ?\?| offset \?)?").expect("limit regex must be valid")
 });
 
 static ORDER_BY_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\border by ").expect("order by regex must be valid"));
+    LazyLock::new(|| Regex::new(r"(?-u:\b)order by ").expect("order by regex must be valid"));
 
 fn is_mysqldump(query: &str) -> bool {
     query.starts_with("SELECT /*!40001 SQL_NO_CACHE */ * FROM `")

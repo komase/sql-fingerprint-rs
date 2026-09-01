@@ -525,3 +525,82 @@ fn ascending_order_markers_after_order_by_are_removed() {
         assert_eq!(actual, expected, "query: {query}");
     }
 }
+
+#[test]
+fn numeric_literal_boundaries_match_percona() {
+    let cases = [
+        ("SELECT 1e10, 1E10", "select ?, ?e?"),
+        ("SELECT -1.2e+3, -1.2E+3", "select ?, ?e?"),
+        ("SELECT 0xff, 0xFF", "select ?, ?ff"),
+        ("SELECT b'101', B'101', x'0f', X'0F'", "select ?, b?, ?, x?"),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
+fn quoted_literal_boundaries_match_percona() {
+    let cases = [
+        ("SELECT '' AS empty_value", "select ? as empty_value"),
+        ("SELECT 'a''b' AS value", "select ?'b' as value"),
+        ("SELECT 'a' 'b' AS value", "select ? ? as value"),
+        ("SELECT 'unterminated", "select 'unterminated"),
+        ("SELECT \"unterminated", "select \"unterminated"),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
+fn basic_write_statements_are_fingerprinted() {
+    let cases = [
+        (
+            "INSERT INTO audit (message, created_at) VALUES ('login', '2026-09-01')",
+            "insert into audit (message, created_at) values(?+)",
+        ),
+        (
+            "UPDATE users SET name = 'Alice', age = 42 WHERE id = 7",
+            "update users set name = ?, age = ? where id = ?",
+        ),
+        (
+            "DELETE FROM users WHERE id IN (1, 2, 3)",
+            "delete from users where id in(?+)",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
+fn ascii_word_boundaries_match_percona() {
+    let cases = [
+        ("SELECT étrue, éfalse, éNULL", "select é?, é?, é?"),
+        ("SELECT 名前true, 名前NULL", "select 名前?, 名前?"),
+        ("SELECT true値, NULL値", "select ?値, ?値"),
+        ("SELECT éIN (1, 2)", "select éin(?+)"),
+        ("éSELECT a UNION SELECT a", "éselect a /*repeat union*/"),
+        ("SELECT * FROM t éLIMIT 1, 2", "select * from t élimit ?"),
+        (
+            "SELECT * FROM t éORDER BY name ASC",
+            "select * from t éorder by name",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
