@@ -481,3 +481,47 @@ fn select_prefixes_are_not_treated_as_select_statements() {
 
     assert_eq!(actual, expected);
 }
+
+#[test]
+fn limit_clauses_are_reduced_to_a_single_placeholder() {
+    let cases = [
+        ("SELECT * FROM t LIMIT 10", "select * from t limit ?"),
+        ("SELECT * FROM t LIMIT 10, 20", "select * from t limit ?"),
+        ("SELECT * FROM t LIMIT 10,20", "select * from t limit ?"),
+        (
+            "SELECT * FROM t LIMIT 10 OFFSET 20",
+            "select * from t limit ?",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
+fn ascending_order_markers_after_order_by_are_removed() {
+    let cases = [
+        (
+            "SELECT * FROM t ORDER BY name ASC",
+            "select * from t order by name",
+        ),
+        (
+            "SELECT * FROM t ORDER BY last_name ASC, first_name ASC",
+            "select * from t order by last_name, first_name",
+        ),
+        (
+            "SELECT * FROM t ORDER BY created_at DESC, name ASC",
+            "select * from t order by created_at desc, name",
+        ),
+        ("SELECT ASC FROM t", "select asc from t"),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}

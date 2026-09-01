@@ -80,6 +80,13 @@ static UNION_RE: LazyLock<Regex> =
 static SELECT_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\bselect ").expect("select regex must be valid"));
 
+static LIMIT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\blimit \?(?:, ?\?| offset \?)?").expect("limit regex must be valid")
+});
+
+static ORDER_BY_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\border by ").expect("order by regex must be valid"));
+
 fn is_mysqldump(query: &str) -> bool {
     query.starts_with("SELECT /*!40001 SQL_NO_CACHE */ * FROM `")
 }
@@ -232,6 +239,33 @@ fn remove_line_comments(query: &str) -> Cow<'_, str> {
         None => Cow::Borrowed(query),
     }
 }
+
+fn remove_order_by_asc(query: &str) -> Cow<'_, str> {
+    let Some(order_by) = ORDER_BY_RE.find(query) else {
+        return Cow::Borrowed(query);
+    };
+
+    let mut search_from = order_by.end();
+    let mut copy_from = 0;
+    let mut rewritten: Option<String> = None;
+
+    while let Some(relative_start) = query[search_from..].find(" asc") {
+        let asc_start = search_from + relative_start;
+        let output = rewritten.get_or_insert_with(|| String::with_capacity(query.len()));
+        output.push_str(&query[copy_from..asc_start]);
+
+        copy_from = asc_start + " asc".len();
+        search_from = copy_from;
+    }
+    match rewritten {
+        Some(mut rewritten) => {
+            rewritten.push_str(&query[copy_from..]);
+            Cow::Owned(rewritten)
+        }
+        None => Cow::Borrowed(query),
+    }
+}
+
 #[derive(Default)]
 pub struct FingerprintOptions {
     match_md5_checksums: bool,
@@ -322,7 +356,9 @@ impl Fingerprinter {
         fingerprint.make_ascii_lowercase();
         let fingerprint = NULL_RE.replace_all(&fingerprint, "?").into_owned();
         let fingerprint = LIST_RE.replace_all(&fingerprint, "${1}(?+)").into_owned();
-        collapse_repeated_union(&fingerprint).into_owned()
+        let fingerprint = collapse_repeated_union(&fingerprint).into_owned();
+        let fingerprint = LIMIT_RE.replace(&fingerprint, "limit ?").into_owned();
+        remove_order_by_asc(fingerprint.as_ref()).into_owned()
     }
 }
 
