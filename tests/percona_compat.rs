@@ -454,3 +454,30 @@ fn non_repeated_unions_are_preserved() {
         assert_eq!(actual, expected, "query: {query}");
     }
 }
+
+#[test]
+fn repeated_unions_after_a_query_prefix_are_collapsed() {
+    let query = "EXPLAIN SELECT a FROM t UNION SELECT a FROM t";
+    let actual = fingerprint(query);
+    let expected = "explain select a from t /*repeat union*/";
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn repeated_unions_after_a_different_branch_are_collapsed() {
+    let query = "SELECT a FROM t UNION SELECT b FROM t UNION SELECT b FROM t";
+    let actual = fingerprint(query);
+    let expected = "select a from t union select b from t /*repeat union*/";
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn select_prefixes_are_not_treated_as_select_statements() {
+    let query = "selection UNION selection";
+    let actual = fingerprint(query);
+    let expected = "selection union selection";
+
+    assert_eq!(actual, expected);
+}

@@ -77,6 +77,9 @@ static LIST_RE: LazyLock<Regex> = LazyLock::new(|| {
 static UNION_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r" union(?: all)? ").expect("union regex must be valid"));
 
+static SELECT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\bselect ").expect("select regex must be valid"));
+
 fn is_mysqldump(query: &str) -> bool {
     query.starts_with("SELECT /*!40001 SQL_NO_CACHE */ * FROM `")
 }
@@ -118,37 +121,72 @@ fn use_fingerprint(query: &str) -> Option<String> {
 }
 
 fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
-    let mut separators = UNION_RE.find_iter(query);
-    let Some(first_separator) = separators.next() else {
-        return Cow::Borrowed(query);
-    };
-
-    let candidate = &query[..first_separator.start()];
-    if !candidate.starts_with("select ") {
+    let separators: Vec<_> = UNION_RE.find_iter(query).collect();
+    if separators.is_empty() {
         return Cow::Borrowed(query);
     }
 
-    let after_separator = &query[first_separator.end()..];
-    if !after_separator.starts_with(candidate) {
-        return Cow::Borrowed(query);
-    }
-    let mut cursor = first_separator.end() + candidate.len();
-    let mut operator = first_separator.as_str().trim();
+    let mut separator_index = 0;
+    let mut copy_from = 0;
+    let mut rewritten: Option<String> = None;
 
-    for separator in separators {
-        if separator.start() != cursor {
-            break;
-        }
+    while separator_index < separators.len() {
+        let separator = &separators[separator_index];
+        let search_area = &query[copy_from..separator.start()];
         let after_separator = &query[separator.end()..];
-        if !after_separator.starts_with(candidate) {
-            break;
+        let mut repeated = None;
+
+        for select_match in SELECT_RE.find_iter(search_area) {
+            let select_start = copy_from + select_match.start();
+            let candidate = &query[select_start..separator.start()];
+
+            if after_separator.starts_with(candidate) {
+                repeated = Some((select_start, candidate));
+                break;
+            }
         }
-        cursor = separator.end() + candidate.len();
-        operator = separator.as_str().trim();
+        let Some((select_start, candidate)) = repeated else {
+            separator_index += 1;
+            continue;
+        };
+
+        let mut cursor = separator.end() + candidate.len();
+        let mut operator = separator.as_str().trim();
+        separator_index += 1;
+
+        while separator_index < separators.len() {
+            let next_separator = &separators[separator_index];
+
+            if next_separator.start() != cursor {
+                break;
+            }
+
+            let after_separator = &query[next_separator.end()..];
+            if !after_separator.starts_with(candidate) {
+                break;
+            }
+
+            cursor = next_separator.end() + candidate.len();
+            operator = next_separator.as_str().trim();
+            separator_index += 1;
+        }
+
+        let output = rewritten.get_or_insert_with(|| String::with_capacity(query.len()));
+        output.push_str(&query[copy_from..select_start]);
+        output.push_str(candidate);
+        output.push_str(" /*repeat ");
+        output.push_str(operator);
+        output.push_str("*/");
+        copy_from = cursor;
     }
 
-    let suffix = &query[cursor..];
-    Cow::Owned(format!("{candidate} /*repeat {operator}*/{suffix}"))
+    match rewritten {
+        Some(mut rewritten) => {
+            rewritten.push_str(&query[copy_from..]);
+            Cow::Owned(rewritten)
+        }
+        None => Cow::Borrowed(query),
+    }
 }
 
 // Preserve line endings and reject comment candidates containing quotes.
