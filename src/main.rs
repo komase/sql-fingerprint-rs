@@ -12,14 +12,22 @@ use std::sync::LazyLock;
 static HASH_LINE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^#.+$").expect("hash line regex must be valid"));
 
+/// Convert SQL queries into fingerprints.
 #[derive(Parser, Debug)]
 #[command(version)]
 struct Args {
+    /// Fingerprint a single query instead of reading files or standard input.
     #[arg(long, conflicts_with = "files")]
     query: Option<String>,
+
+    /// SQL files to read; use - or omit files to read standard input.
     files: Vec<PathBuf>,
+
+    /// Preserve numbers embedded in identifiers such as catch22.
     #[arg(long)]
     match_embedded_numbers: bool,
+
+    /// Replace lowercase MD5 checksums with a single placeholder.
     #[arg(long)]
     match_md5_checksums: bool,
 }
