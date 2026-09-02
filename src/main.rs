@@ -36,6 +36,8 @@ struct Args {
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
+        // Downstream consumers such as `head` may close the pipe after receiving enough output.
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("Error: {error}");
             ExitCode::FAILURE
