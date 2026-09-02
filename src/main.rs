@@ -2,6 +2,7 @@ use std::{
     fs::File,
     io::{self, BufRead, BufReader, Write},
     path::{Path, PathBuf},
+    process::ExitCode,
 };
 
 use clap::Parser;
@@ -32,7 +33,17 @@ struct Args {
     match_md5_checksums: bool,
 }
 
-fn main() -> io::Result<()> {
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Error: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> io::Result<()> {
     let args = Args::parse();
     let options = FingerprintOptions::default()
         .with_match_embedded_numbers(args.match_embedded_numbers)
