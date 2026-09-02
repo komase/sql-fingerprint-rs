@@ -283,7 +283,7 @@ fn remove_order_by_asc(query: &str) -> Cow<'_, str> {
 /// Options that control optional fingerprint matching behavior.
 ///
 /// All options are disabled by default.
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FingerprintOptions {
     match_md5_checksums: bool,
     match_embedded_numbers: bool,
@@ -308,6 +308,7 @@ impl FingerprintOptions {
 }
 
 /// A reusable SQL fingerprinter with fixed matching options.
+#[derive(Debug, Clone, Default)]
 pub struct Fingerprinter {
     options: FingerprintOptions,
 }
