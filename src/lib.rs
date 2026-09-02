@@ -92,6 +92,25 @@ fn use_fingerprint(query: &str) -> Option<String> {
     }
 }
 
+// Collapse each run of supported whitespace into one ASCII space.
+fn collapse_supported_whitespace(query: &str) -> String {
+    let mut collapsed = String::with_capacity(query.len());
+    let mut previous_was_whitespace = false;
+
+    for character in query.chars() {
+        if is_collapsible_whitespace(character) {
+            if !previous_was_whitespace {
+                collapsed.push(' ');
+                previous_was_whitespace = true;
+            }
+            continue;
+        }
+        previous_was_whitespace = false;
+        collapsed.push(character);
+    }
+    collapsed
+}
+
 // Replace consecutive copies of the same SELECT sequence with one copy and a
 // `/*repeat union...*/` marker.
 fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
@@ -347,20 +366,7 @@ impl Fingerprinter {
         // Remove leading collapsible whitespace.
         let query = query.trim_start_matches(is_collapsible_whitespace);
         let query = query.strip_suffix('\n').unwrap_or(query);
-        // Collapse each run of supported whitespace into one ASCII space.
-        let mut fingerprint = String::with_capacity(query.len());
-        let mut previous_was_whitespace = false;
-        for character in query.chars() {
-            if is_collapsible_whitespace(character) {
-                if !previous_was_whitespace {
-                    fingerprint.push(' ');
-                    previous_was_whitespace = true;
-                }
-                continue;
-            }
-            previous_was_whitespace = false;
-            fingerprint.push(character);
-        }
+        let mut fingerprint = collapse_supported_whitespace(query);
         fingerprint.make_ascii_lowercase();
         let fingerprint = NULL_RE.replace_all(&fingerprint, "?");
         let fingerprint = LIST_RE.replace_all(&fingerprint, "${1}(?+)");
