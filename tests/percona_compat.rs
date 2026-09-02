@@ -436,6 +436,18 @@ fn repeated_unions_are_collapsed() {
 }
 
 #[test]
+fn repeated_union_candidates_containing_unions_are_collapsed() {
+    // A UNION inside the repeated candidate must not be processed again after
+    // the complete candidate has already been consumed.
+    let query = "SELECT a UNION ALL SELECT b UNION SELECT a UNION ALL SELECT b";
+    let expected = "select a union all select b /*repeat union*/";
+
+    let actual = fingerprint(query);
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn non_repeated_unions_are_preserved() {
     let cases = [
         (

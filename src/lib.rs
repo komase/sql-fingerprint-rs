@@ -149,6 +149,10 @@ fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
 
     while separator_index < separators.len() {
         let separator = &separators[separator_index];
+        if separator.start() < copy_from {
+            separator_index += 1;
+            continue;
+        }
         let search_area = &query[copy_from..separator.start()];
         let after_separator = &query[separator.end()..];
         let mut repeated = None;
