@@ -246,3 +246,51 @@ fn query_and_file_arguments_are_rejected() {
         "stderr should describe the argument conflict: {stderr}"
     );
 }
+
+#[test]
+fn stream_input_removes_content_bearing_hash_lines_before_fingerprinting() {
+    // CLI preprocessing removes metadata lines even when they contain quotes.
+    let output = run_cli_with_stdin(
+        &[],
+        "# Time: 'quoted metadata'\nSELECT * FROM users WHERE id = 42;\n",
+    );
+
+    assert!(
+        output.status.success(),
+        "CLI should exit successfully: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be valid UTF-8"),
+        "select * from users where id = ?\n"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn stream_input_skips_records_without_an_ascii_word_prefix() {
+    // Filtering happens after leading whitespace is removed from each record.
+    let output = run_cli_with_stdin(
+        &[],
+        " \t/* metadata */ SELECT * FROM skipped_comment;\n ÄSELECT * FROM skipped_unicode;\n \tSELECT * FROM kept WHERE id = 1;\n",
+    );
+
+    assert!(
+        output.status.success(),
+        "CLI should exit successfully: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be valid UTF-8"),
+        "select * from kept where id = ?\n"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

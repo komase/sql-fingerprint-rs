@@ -5,7 +5,12 @@ use std::{
 };
 
 use clap::Parser;
+use regex::Regex;
 use sql_fingerprint::{FingerprintOptions, Fingerprinter};
+use std::sync::LazyLock;
+
+static HASH_LINE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^#.+$").expect("hash line regex must be valid"));
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -61,20 +66,37 @@ fn process_reader<R: BufRead, W: Write>(
         let bytes_read = reader.read_line(&mut record)?;
         if bytes_read == 0 {
             if !record.is_empty() {
-                let fingerprint = fingerprinter.fingerprint(&record);
-                writeln!(writer, "{fingerprint}")?;
+                process_record(&record, writer, fingerprinter)?;
             }
             break;
         }
 
         if record.ends_with(";\n") {
             record.truncate(record.len() - 2);
-            let fingerprint = fingerprinter.fingerprint(&record);
-            writeln!(writer, "{fingerprint}")?;
-
+            process_record(&record, writer, fingerprinter)?;
             record.clear();
         }
     }
 
+    Ok(())
+}
+
+fn process_record<W: Write>(
+    record: &str,
+    writer: &mut W,
+    fingerprinter: &Fingerprinter,
+) -> io::Result<()> {
+    let query = HASH_LINE_RE.replace_all(record, "");
+    let query = query.trim_start_matches(|character: char| character.is_ascii_whitespace());
+
+    let Some(first_character) = query.chars().next() else {
+        return Ok(());
+    };
+
+    if !first_character.is_ascii_alphanumeric() && first_character != '_' {
+        return Ok(());
+    }
+    let fingerprint = fingerprinter.fingerprint(query);
+    writeln!(writer, "{fingerprint}")?;
     Ok(())
 }
