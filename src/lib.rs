@@ -10,92 +10,47 @@
 use regex::Regex;
 use std::{borrow::Cow, sync::LazyLock};
 
-static NUMBER_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[0-9+-][0-9a-f.xb+-]*").expect("number regex must be valid"));
+macro_rules! static_regex {
+    ($name:ident,$pattern:literal) => {
+        static $name: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new($pattern).expect(concat!(stringify!($name), " must be a valid regex"))
+        });
+    };
+}
 
-static NUMBER_WITH_WORD_BOUNDARY_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?-u:\b)[0-9+-][0-9a-f.xb+-]*")
-        .expect("number with word boundary regex must be valid")
-});
-
-static MD5_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"([._-])[a-f0-9]{32}").expect("MD5 checksum regex must be valid"));
-
-static NUMBER_LEFTOVER_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[xb.+-]\?").expect("number leftover regex must be valid"));
-
-static NUMBER_LEFTOVER_WITH_MD5_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[xb+-]\?").expect("number leftover with MD5 regex must be valid")
-});
-
-static PERCONA_CHECKSUM_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"/\*[A-Za-z0-9_]+\.[A-Za-z0-9_]+:[0-9]/[0-9]\*/")
-        .expect("Percona checksum regex must be valid")
-});
-
-static CALL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^\s*(call\s+\S+)\(").expect("CALL regex must be valid"));
-
-static VALUES_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?is)^((?:INSERT|REPLACE)(?: IGNORE)?\s+INTO.+?VALUES\s*\(.*?\))\s*,\s*\(")
-        .expect("Values regex must be valid")
-});
-
-static BLOCK_COMMENT_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)/\*[^!].*?\*/").expect("COMMENT regex must be valid"));
-
-static USE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\Ause \S+(?:\n)?\z").expect("USE regex must be valid"));
-
-static PREFIXED_ESCAPED_SINGLE_QUOTE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"([^\\])(\\')").expect("escaped single quote regex must be valid")
-});
-
-static PREFIXED_ESCAPED_DOUBLE_QUOTE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"([^\\])(\\")"#).expect("escaped double quote regex must be valid")
-});
-
-static DOUBLE_BACKSLASH_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\\\\").expect("double backslash regex must be valid"));
-
-static ESCAPED_SINGLE_QUOTE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\\'").expect("single quote escape regex must be valid"));
-
-static ESCAPED_DOUBLE_QUOTE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"\\""#).expect("double quote escape regex must be valid"));
-
-static DOUBLE_QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?s)([^\\])(".*?[^\\]?")"#).expect("double-quoted literal regex must be valid")
-});
-
-static SINGLE_QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)([^\\])('.*?[^\\]?')").expect("single-quoted literal regex must be valid")
-});
-
-static BOOLEAN_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(?-u:\b)(?:false|true)(?-u:\b)").expect("boolean literal regex must be valid")
-});
-
-static NULL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?-u:\b)null(?-u:\b)").expect("null regex must be valid"));
-
-static LIST_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?-u:\b)(in|values?)(?:[\s,]*\([\s?,]*\))+")
-        .expect("IN and VALUES list regex must be valid")
-});
-
-static UNION_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r" union(?: all)? ").expect("union regex must be valid"));
-
-static SELECT_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?-u:\b)select ").expect("select regex must be valid"));
-
-static LIMIT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?-u:\b)limit \?(?:, ?\?| offset \?)?").expect("limit regex must be valid")
-});
-
-static ORDER_BY_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?-u:\b)order by ").expect("order by regex must be valid"));
+static_regex!(NUMBER_RE, r"[0-9+-][0-9a-f.xb+-]*");
+static_regex!(
+    NUMBER_WITH_WORD_BOUNDARY_RE,
+    r"(?-u:\b)[0-9+-][0-9a-f.xb+-]*"
+);
+static_regex!(MD5_RE, r"([._-])[a-f0-9]{32}");
+static_regex!(NUMBER_LEFTOVER_RE, r"[xb.+-]\?");
+static_regex!(NUMBER_LEFTOVER_WITH_MD5_RE, r"[xb+-]\?");
+static_regex!(
+    PERCONA_CHECKSUM_RE,
+    r"/\*[A-Za-z0-9_]+\.[A-Za-z0-9_]+:[0-9]/[0-9]\*/"
+);
+static_regex!(CALL_RE, r"(?i)^\s*(call\s+\S+)\(");
+static_regex!(
+    VALUES_RE,
+    r"(?is)^((?:INSERT|REPLACE)(?: IGNORE)?\s+INTO.+?VALUES\s*\(.*?\))\s*,\s*\("
+);
+static_regex!(BLOCK_COMMENT_RE, r"(?s)/\*[^!].*?\*/");
+static_regex!(USE_RE, r"(?i)\Ause \S+(?:\n)?\z");
+static_regex!(PREFIXED_ESCAPED_SINGLE_QUOTE_RE, r"([^\\])(\\')");
+static_regex!(PREFIXED_ESCAPED_DOUBLE_QUOTE_RE, r#"([^\\])(\\")"#);
+static_regex!(DOUBLE_BACKSLASH_RE, r"\\\\");
+static_regex!(ESCAPED_SINGLE_QUOTE_RE, r"\\'");
+static_regex!(ESCAPED_DOUBLE_QUOTE_RE, r#"\\""#);
+static_regex!(DOUBLE_QUOTED_LITERAL_RE, r#"(?s)([^\\])(".*?[^\\]?")"#);
+static_regex!(SINGLE_QUOTED_LITERAL_RE, r"(?s)([^\\])('.*?[^\\]?')");
+static_regex!(BOOLEAN_RE, r"(?i)(?-u:\b)(?:false|true)(?-u:\b)");
+static_regex!(NULL_RE, r"(?-u:\b)null(?-u:\b)");
+static_regex!(LIST_RE, r"(?-u:\b)(in|values?)(?:[\s,]*\([\s?,]*\))+");
+static_regex!(UNION_RE, r" union(?: all)? ");
+static_regex!(SELECT_RE, r"(?-u:\b)select ");
+static_regex!(LIMIT_RE, r"(?-u:\b)limit \?(?:, ?\?| offset \?)?");
+static_regex!(ORDER_BY_RE, r"(?-u:\b)order by ");
 
 fn is_mysqldump(query: &str) -> bool {
     query.starts_with("SELECT /*!40001 SQL_NO_CACHE */ * FROM `")
