@@ -396,10 +396,10 @@ impl Fingerprinter {
             fingerprint.push(character);
         }
         fingerprint.make_ascii_lowercase();
-        let fingerprint = NULL_RE.replace_all(&fingerprint, "?").into_owned();
-        let fingerprint = LIST_RE.replace_all(&fingerprint, "${1}(?+)").into_owned();
-        let fingerprint = collapse_repeated_union(&fingerprint).into_owned();
-        let fingerprint = LIMIT_RE.replace(&fingerprint, "limit ?").into_owned();
+        let fingerprint = NULL_RE.replace_all(&fingerprint, "?");
+        let fingerprint = LIST_RE.replace_all(&fingerprint, "${1}(?+)");
+        let fingerprint = collapse_repeated_union(&fingerprint);
+        let fingerprint = LIMIT_RE.replace(&fingerprint, "limit ?");
         remove_order_by_asc(fingerprint.as_ref()).into_owned()
     }
 }
