@@ -92,6 +92,8 @@ fn use_fingerprint(query: &str) -> Option<String> {
     }
 }
 
+// Replace consecutive copies of the same SELECT sequence with one copy and a
+// `/*repeat union...*/` marker.
 fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
     let separators: Vec<_> = UNION_RE.find_iter(query).collect();
     if separators.is_empty() {
@@ -104,6 +106,8 @@ fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
 
     while separator_index < separators.len() {
         let separator = &separators[separator_index];
+        // A repeated sequence can contain UNIONs, so an earlier collapse may
+        // already have consumed this separator.
         if separator.start() < copy_from {
             separator_index += 1;
             continue;
@@ -112,6 +116,8 @@ fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
         let after_separator = &query[separator.end()..];
         let mut repeated = None;
 
+        // Find a SELECT suffix before this separator that repeats immediately
+        // after it.
         for select_match in SELECT_RE.find_iter(search_area) {
             let select_start = copy_from + select_match.start();
             let candidate = &query[select_start..separator.start()];
@@ -130,6 +136,8 @@ fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
         let mut operator = separator.as_str().trim();
         separator_index += 1;
 
+        // Consume further adjacent copies and retain the final UNION variant
+        // for the repeat marker.
         while separator_index < separators.len() {
             let next_separator = &separators[separator_index];
 
@@ -166,6 +174,8 @@ fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
 }
 
 // Preserve line endings and reject comment candidates containing quotes.
+// Slicing occurs only at ASCII delimiters or the end of the string, which are
+// always valid UTF-8 boundaries.
 fn remove_line_comments(query: &str) -> Cow<'_, str> {
     let bytes = query.as_bytes();
     let mut rewritten: Option<String> = None;
