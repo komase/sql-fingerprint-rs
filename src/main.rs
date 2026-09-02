@@ -57,7 +57,7 @@ fn main() -> io::Result<()> {
         let stdin = io::stdin();
         let reader = stdin.lock();
         process_reader(reader, &mut writer, &fingerprinter)?;
-    };
+    }
     Ok(())
 }
 

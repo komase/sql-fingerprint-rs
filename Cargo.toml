@@ -12,6 +12,10 @@ regex = "1.13.1"
 [dev-dependencies]
 criterion = "0.7.0"
 
+[lints.clippy]
+semicolon_if_nothing_returned = "warn"
+unnecessary_semicolon = "warn"
+
 [[bench]]
 name = "fingerprint"
 harness = false

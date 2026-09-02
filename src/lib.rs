@@ -229,7 +229,7 @@ fn remove_line_comments(query: &str) -> Cow<'_, str> {
         let mut end = cursor + marker_len;
 
         while end < bytes.len() && !matches!(bytes[end], b'\'' | b'"' | b'\r' | b'\n') {
-            end += 1
+            end += 1;
         }
 
         let reaches_line_end = end == bytes.len() || matches!(bytes[end], b'\r' | b'\n');
@@ -381,7 +381,7 @@ impl Fingerprinter {
 
         // Remove leading collapsible whitespace.
         let query = query.trim_start_matches(is_collapsible_whitespace);
-        let query = query.strip_suffix("\n").unwrap_or(query);
+        let query = query.strip_suffix('\n').unwrap_or(query);
         // Collapse each run of supported whitespace into one ASCII space.
         let mut fingerprint = String::with_capacity(query.len());
         let mut previous_was_whitespace = false;
@@ -389,7 +389,7 @@ impl Fingerprinter {
             if is_collapsible_whitespace(character) {
                 if !previous_was_whitespace {
                     fingerprint.push(' ');
-                    previous_was_whitespace = true
+                    previous_was_whitespace = true;
                 }
                 continue;
             }
