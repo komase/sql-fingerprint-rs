@@ -334,45 +334,52 @@ impl Fingerprinter {
         }
 
         let query = shorten_multi_value_query(query).unwrap_or(query);
-        let query = BLOCK_COMMENT_RE.replace_all(query, "");
-        let query = remove_line_comments(&query);
-        if let Some(use_statement) = use_fingerprint(&query) {
+        let without_comments = BLOCK_COMMENT_RE.replace_all(query, "");
+        let without_comments = remove_line_comments(&without_comments);
+        if let Some(use_statement) = use_fingerprint(&without_comments) {
             return use_statement;
         }
-        let query = PREFIXED_ESCAPED_SINGLE_QUOTE_RE.replace_all(&query, "${1}");
-        let query = PREFIXED_ESCAPED_DOUBLE_QUOTE_RE.replace_all(&query, "${1}");
-        let query = DOUBLE_BACKSLASH_RE.replace_all(&query, "");
-        let query = ESCAPED_SINGLE_QUOTE_RE.replace_all(&query, "");
-        let query = ESCAPED_DOUBLE_QUOTE_RE.replace_all(&query, "");
-        let query = DOUBLE_QUOTED_LITERAL_RE.replace_all(&query, "${1}?");
-        let query = SINGLE_QUOTED_LITERAL_RE.replace_all(&query, "${1}?");
-        let query = BOOLEAN_RE.replace_all(&query, "?");
-        let query = if self.options.match_md5_checksums {
-            MD5_RE.replace_all(&query, "${1}?")
+
+        let normalized_literals =
+            PREFIXED_ESCAPED_SINGLE_QUOTE_RE.replace_all(&without_comments, "${1}");
+        let normalized_literals =
+            PREFIXED_ESCAPED_DOUBLE_QUOTE_RE.replace_all(&normalized_literals, "${1}");
+        let normalized_literals = DOUBLE_BACKSLASH_RE.replace_all(&normalized_literals, "");
+        let normalized_literals = ESCAPED_SINGLE_QUOTE_RE.replace_all(&normalized_literals, "");
+        let normalized_literals = ESCAPED_DOUBLE_QUOTE_RE.replace_all(&normalized_literals, "");
+        let normalized_literals =
+            DOUBLE_QUOTED_LITERAL_RE.replace_all(&normalized_literals, "${1}?");
+        let normalized_literals =
+            SINGLE_QUOTED_LITERAL_RE.replace_all(&normalized_literals, "${1}?");
+        let normalized_literals = BOOLEAN_RE.replace_all(&normalized_literals, "?");
+
+        let normalized_checksums = if self.options.match_md5_checksums {
+            MD5_RE.replace_all(&normalized_literals, "${1}?")
         } else {
-            Cow::Borrowed(query.as_ref())
+            Cow::Borrowed(normalized_literals.as_ref())
         };
-        let number_replaced = if self.options.match_embedded_numbers {
-            NUMBER_WITH_WORD_BOUNDARY_RE.replace_all(&query, "?")
+        let normalized_numbers = if self.options.match_embedded_numbers {
+            NUMBER_WITH_WORD_BOUNDARY_RE.replace_all(&normalized_checksums, "?")
         } else {
-            NUMBER_RE.replace_all(&query, "?")
+            NUMBER_RE.replace_all(&normalized_checksums, "?")
         };
-        let query = if self.options.match_md5_checksums {
-            NUMBER_LEFTOVER_WITH_MD5_RE.replace_all(&number_replaced, "?")
+        let normalized_numbers = if self.options.match_md5_checksums {
+            NUMBER_LEFTOVER_WITH_MD5_RE.replace_all(&normalized_numbers, "?")
         } else {
-            NUMBER_LEFTOVER_RE.replace_all(&number_replaced, "?")
+            NUMBER_LEFTOVER_RE.replace_all(&normalized_numbers, "?")
         };
 
         // Remove leading collapsible whitespace.
-        let query = query.trim_start_matches(is_collapsible_whitespace);
-        let query = query.strip_suffix('\n').unwrap_or(query);
-        let mut fingerprint = collapse_supported_whitespace(query);
-        fingerprint.make_ascii_lowercase();
-        let fingerprint = NULL_RE.replace_all(&fingerprint, "?");
-        let fingerprint = LIST_RE.replace_all(&fingerprint, "${1}(?+)");
-        let fingerprint = collapse_repeated_union(&fingerprint);
-        let fingerprint = LIMIT_RE.replace(&fingerprint, "limit ?");
-        remove_order_by_asc(fingerprint.as_ref()).into_owned()
+        let trimmed = normalized_numbers.trim_start_matches(is_collapsible_whitespace);
+        let trimmed = trimmed.strip_suffix('\n').unwrap_or(trimmed);
+        let mut normalized_text = collapse_supported_whitespace(trimmed);
+        normalized_text.make_ascii_lowercase();
+
+        let normalized_nulls = NULL_RE.replace_all(&normalized_text, "?");
+        let collapsed_lists = LIST_RE.replace_all(&normalized_nulls, "${1}(?+)");
+        let collapsed_unions = collapse_repeated_union(&collapsed_lists);
+        let normalized_limit = LIMIT_RE.replace(&collapsed_unions, "limit ?");
+        remove_order_by_asc(normalized_limit.as_ref()).into_owned()
     }
 }
 
