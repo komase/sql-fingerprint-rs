@@ -294,3 +294,133 @@ fn stream_input_skips_records_without_an_ascii_word_prefix() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn query_argument_bypasses_stream_preprocessing() {
+    // Direct queries preserve input that stream preprocessing would discard.
+    let output = run_cli(&[
+        "--query",
+        "# Time: 'quoted metadata'\nSELECT * FROM users WHERE id = 42",
+    ]);
+
+    assert!(
+        output.status.success(),
+        "CLI should exit successfully: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be valid UTF-8"),
+        "# time: ? select * from users where id = ?\n"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn missing_file_reports_its_path() {
+    let input = TempInput::new("");
+    let missing_path = input.path().to_path_buf();
+    drop(input);
+    let missing_path = missing_path
+        .to_str()
+        .expect("temporary SQL file path should be valid UTF-8");
+    let output = run_cli(&[missing_path]);
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be valid UTF-8");
+
+    assert!(!output.status.success(), "CLI should report file errors");
+    assert!(output.stdout.is_empty(), "stdout should be empty");
+    assert!(
+        stderr.contains(missing_path),
+        "stderr should identify the missing file: {stderr}"
+    );
+}
+
+#[test]
+fn final_record_without_separator_is_processed_at_eof() {
+    // Percona processes a final partial record even without the ";\n" separator.
+    let output = run_cli_with_stdin(&[], "SELECT * FROM users WHERE id = 42");
+
+    assert!(
+        output.status.success(),
+        "CLI should exit successfully: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be valid UTF-8"),
+        "select * from users where id = ?\n"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn empty_stream_records_are_skipped() {
+    let output = run_cli_with_stdin(&[], ";\n \t;\nSELECT 1;\n");
+
+    assert!(
+        output.status.success(),
+        "CLI should exit successfully: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be valid UTF-8"),
+        "select ?\n"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn help_option_describes_cli_inputs() {
+    let output = run_cli(&["--help"]);
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be valid UTF-8");
+
+    assert!(
+        output.status.success(),
+        "CLI should exit successfully: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(stdout.contains("Usage:"), "help should contain usage");
+    assert!(
+        stdout.contains("--query"),
+        "help should describe direct input"
+    );
+    assert!(
+        stdout.contains("--match-embedded-numbers"),
+        "help should describe matching options"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn version_option_prints_package_version() {
+    let output = run_cli(&["--version"]);
+
+    assert!(
+        output.status.success(),
+        "CLI should exit successfully: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be valid UTF-8"),
+        format!("sql-fingerprint {}\n", env!("CARGO_PKG_VERSION"))
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr should be empty: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

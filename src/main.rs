@@ -13,6 +13,7 @@ static HASH_LINE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^#.+$").expect("hash line regex must be valid"));
 
 #[derive(Parser, Debug)]
+#[command(version)]
 struct Args {
     #[arg(long, conflicts_with = "files")]
     query: Option<String>,
@@ -43,7 +44,12 @@ fn main() -> io::Result<()> {
                 process_reader(reader, &mut writer, &fingerprinter)?;
                 continue;
             }
-            let file = File::open(path)?;
+            let file = File::open(path).map_err(|source| {
+                io::Error::new(
+                    source.kind(),
+                    format!("failed to open {}: {source}", path.display()),
+                )
+            })?;
             let reader = BufReader::new(file);
             process_reader(reader, &mut writer, &fingerprinter)?;
         }
