@@ -24,6 +24,27 @@ fn repeated_union(count: usize) -> String {
         .join(" UNION ")
 }
 
+fn alphabetic_identifier(mut value: usize) -> String {
+    let mut suffix = [b'a'; 4];
+    for character in suffix.iter_mut().rev() {
+        *character += (value % 26) as u8;
+        value /= 26;
+    }
+
+    String::from_utf8(suffix.to_vec()).expect("alphabetic identifier must be valid UTF-8")
+}
+
+fn non_repeated_union(count: usize) -> String {
+    // Alphabetic suffixes remain distinct after numeric literal normalization.
+    (0..count)
+        .map(|index| {
+            let identifier = alphabetic_identifier(index);
+            format!("SELECT item_{identifier} FROM source_{identifier}")
+        })
+        .collect::<Vec<_>>()
+        .join(" UNION ")
+}
+
 fn long_block_comment(payload_len: usize) -> String {
     format!("SELECT 1 /* {} */ FROM users", "x".repeat(payload_len))
 }
@@ -62,5 +83,24 @@ fn benchmark_fingerprint(criterion: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, benchmark_fingerprint);
+fn benchmark_non_repeated_union(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("non_repeated_union");
+    group.sample_size(10);
+
+    for count in [2_000, 4_000, 8_000] {
+        let query = non_repeated_union(count);
+        group.throughput(Throughput::Elements(count as u64));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(count),
+            &query,
+            |bencher, query| {
+                bencher.iter(|| black_box(fingerprint(black_box(query.as_str()))));
+            },
+        );
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, benchmark_fingerprint, benchmark_non_repeated_union);
 criterion_main!(benches);

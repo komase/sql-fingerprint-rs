@@ -160,6 +160,10 @@ fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
         while separator_index < separators.len() {
             let next_separator = &separators[separator_index];
 
+            if next_separator.start() < cursor {
+                separator_index += 1;
+                continue;
+            }
             if next_separator.start() != cursor {
                 break;
             }
@@ -168,7 +172,6 @@ fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
             if !after_separator.starts_with(candidate) {
                 break;
             }
-
             cursor = next_separator.end() + candidate.len();
             operator = next_separator.as_str().trim();
             separator_index += 1;

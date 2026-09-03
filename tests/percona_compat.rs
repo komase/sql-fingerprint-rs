@@ -448,6 +448,52 @@ fn repeated_union_candidates_containing_unions_are_collapsed() {
 }
 
 #[test]
+fn multi_select_union_sequences_repeated_three_times_are_collapsed() {
+    // A multi-SELECT candidate may repeat more than once, and the final
+    // separator determines the marker's UNION variant.
+    let query = "SELECT a UNION ALL SELECT b \
+                 UNION SELECT a UNION ALL SELECT b \
+                 UNION ALL SELECT a UNION ALL SELECT b";
+    let expected = "select a union all select b /*repeat union all*/";
+
+    let actual = fingerprint(query);
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn repeated_union_sequences_preserve_grouping_semantics() {
+    let cases = [
+        (
+            // Only the repeated suffix is collapsed when an unrelated branch
+            // precedes a multi-SELECT candidate.
+            "SELECT prefix_value FROM t \
+             UNION SELECT a UNION ALL SELECT b \
+             UNION SELECT a UNION ALL SELECT b",
+            "select prefix_value from t union select a union all select b /*repeat union*/",
+        ),
+        (
+            // The separator between copies is independent of UNION operators
+            // contained inside the repeated candidate.
+            "SELECT a UNION SELECT b UNION ALL SELECT a UNION SELECT b",
+            "select a union select b /*repeat union all*/",
+        ),
+        (
+            // Nested UNIONs remain part of the repeated outer SELECT.
+            "SELECT * FROM (SELECT a UNION SELECT b) x \
+             UNION SELECT * FROM (SELECT a UNION SELECT b) x",
+            "select * from (select a union select b) x /*repeat union*/",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
 fn non_repeated_unions_are_preserved() {
     let cases = [
         (
@@ -457,6 +503,12 @@ fn non_repeated_unions_are_preserved() {
         (
             "DELETE FROM t UNION DELETE FROM t",
             "delete from t union delete from t",
+        ),
+        (
+            // Similar SELECT sequences are not repeats when an internal UNION
+            // operator differs.
+            "SELECT a UNION SELECT b UNION SELECT a UNION ALL SELECT b",
+            "select a union select b union select a union all select b",
         ),
     ];
 
