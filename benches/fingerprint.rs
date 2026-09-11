@@ -87,7 +87,10 @@ fn benchmark_non_repeated_union(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("non_repeated_union");
     group.sample_size(10);
 
-    for count in [2_000, 4_000, 8_000] {
+    // Doubling the element count exposes the growth of non-repeated UNION
+    // scans: a linear implementation keeps the time flat relative to input,
+    // while the current scan roughly quadruples it.
+    for count in [2_000, 4_000, 8_000, 16_000, 32_000] {
         let query = non_repeated_union(count);
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(
