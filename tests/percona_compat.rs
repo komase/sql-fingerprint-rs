@@ -538,6 +538,44 @@ fn repeated_unions_after_a_different_branch_are_collapsed() {
 }
 
 #[test]
+fn repeated_union_uses_the_leftmost_select_anchor() {
+    // Perl anchors on the leftmost `select` and expands the shortest candidate
+    // that repeats. A `select` appearing later in the same branch must not win
+    // just because it is a prefix of the candidate Perl chooses.
+    let cases = [
+        (
+            "select 1 union select a union select a, b \
+             union select 1 union select a union select a, b",
+            "select ? union select a union select a, b /*repeat union*/",
+        ),
+        (
+            "select b Union All select a union select b UNION select a \
+             union select b union all select a union select b union select a \
+             union select b union select a from t",
+            "select b union all select a union select b union select a /*repeat union*/ \
+             union select b union select a from t",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
+fn union_anchor_must_include_the_select_keyword() {
+    // The repeated unit always contains `select ` with its trailing whitespace.
+    // `select union select a` has only one whitespace between the leading SELECT
+    // and UNION, so Perl cannot capture a repeat and leaves the query unchanged.
+    let query = "select union select a";
+    let actual = fingerprint(query);
+
+    assert_eq!(actual, query);
+}
+
+#[test]
 fn select_prefixes_are_not_treated_as_select_statements() {
     let query = "selection UNION selection";
     let actual = fingerprint(query);
