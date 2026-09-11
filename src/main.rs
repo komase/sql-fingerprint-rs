@@ -7,7 +7,7 @@ use std::{
 
 use clap::Parser;
 use regex::Regex;
-use sql_fingerprint::{FingerprintOptions, Fingerprinter};
+use sql_fingerprint_rs::{FingerprintOptions, Fingerprinter};
 use std::sync::LazyLock;
 
 static HASH_LINE_RE: LazyLock<Regex> =

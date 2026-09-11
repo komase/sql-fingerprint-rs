@@ -318,7 +318,7 @@ impl Fingerprinter {
     /// # Examples
     ///
     /// ```
-    /// use sql_fingerprint::{FingerprintOptions, Fingerprinter};
+    /// use sql_fingerprint_rs::{FingerprintOptions, Fingerprinter};
     ///
     /// let options = FingerprintOptions::default()
     ///     .with_match_embedded_numbers(true);
@@ -398,7 +398,7 @@ impl Fingerprinter {
 /// # Examples
 ///
 /// ```
-/// use sql_fingerprint::fingerprint;
+/// use sql_fingerprint_rs::fingerprint;
 ///
 /// assert_eq!(
 ///     fingerprint("SELECT * FROM users WHERE id = 42"),

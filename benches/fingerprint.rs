@@ -1,5 +1,5 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use sql_fingerprint::fingerprint;
+use sql_fingerprint_rs::fingerprint;
 use std::hint::black_box;
 
 const ONE_MIB: usize = 1024 * 1024;
