@@ -114,52 +114,63 @@ fn collapse_supported_whitespace(query: &str) -> String {
 // Replace consecutive copies of the same SELECT sequence with one copy and a
 // `/*repeat union...*/` marker.
 fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
+    let anchors: Vec<_> = SELECT_RE.find_iter(query).collect();
     let separators: Vec<_> = UNION_RE.find_iter(query).collect();
-    if separators.is_empty() {
+    if anchors.is_empty() {
         return Cow::Borrowed(query);
     }
 
+    let mut anchors_index = 0;
     let mut separator_index = 0;
     let mut copy_from = 0;
     let mut rewritten: Option<String> = None;
 
-    while separator_index < separators.len() {
-        let separator = &separators[separator_index];
-        // A repeated sequence can contain UNIONs, so an earlier collapse may
-        // already have consumed this separator.
-        if separator.start() < copy_from {
-            separator_index += 1;
+    while anchors_index < anchors.len() {
+        let anchor = &anchors[anchors_index];
+        if anchor.start() < copy_from {
+            anchors_index += 1;
             continue;
         }
-        let search_area = &query[copy_from..separator.start()];
-        let after_separator = &query[separator.end()..];
+
+        while separator_index < separators.len() && separators[separator_index].start() < copy_from
+        {
+            separator_index += 1;
+        }
         let mut repeated = None;
+        let mut scan = separator_index;
+        while scan < separators.len() {
+            let separator = &separators[scan];
+            if separator.start() < anchor.end() {
+                scan += 1;
+                continue;
+            }
 
-        // Find a SELECT suffix before this separator that repeats immediately
-        // after it.
-        for select_match in SELECT_RE.find_iter(search_area) {
-            let select_start = copy_from + select_match.start();
-            let candidate = &query[select_start..separator.start()];
-
-            if after_separator.starts_with(candidate) {
-                repeated = Some((select_start, candidate));
+            let candidate = &query[anchor.start()..separator.start()];
+            if query[separator.end()..].starts_with(candidate) {
+                repeated = Some((scan, separator, candidate));
                 break;
             }
+            scan += 1;
         }
-        let Some((select_start, candidate)) = repeated else {
-            separator_index += 1;
+
+        let Some((scan, separator, candidate)) = repeated else {
+            anchors_index += 1;
             continue;
         };
 
         let mut cursor = separator.end() + candidate.len();
         let mut operator = separator.as_str().trim();
-        separator_index += 1;
+        separator_index = scan + 1;
 
         // Consume further adjacent copies and retain the final UNION variant
         // for the repeat marker.
         while separator_index < separators.len() {
             let next_separator = &separators[separator_index];
 
+            if next_separator.start() < cursor {
+                separator_index += 1;
+                continue;
+            }
             if next_separator.start() != cursor {
                 break;
             }
@@ -168,14 +179,13 @@ fn collapse_repeated_union(query: &str) -> Cow<'_, str> {
             if !after_separator.starts_with(candidate) {
                 break;
             }
-
             cursor = next_separator.end() + candidate.len();
             operator = next_separator.as_str().trim();
             separator_index += 1;
         }
 
         let output = rewritten.get_or_insert_with(|| String::with_capacity(query.len()));
-        output.push_str(&query[copy_from..select_start]);
+        output.push_str(&query[copy_from..anchor.start()]);
         output.push_str(candidate);
         output.push_str(" /*repeat ");
         output.push_str(operator);

@@ -448,6 +448,52 @@ fn repeated_union_candidates_containing_unions_are_collapsed() {
 }
 
 #[test]
+fn multi_select_union_sequences_repeated_three_times_are_collapsed() {
+    // A multi-SELECT candidate may repeat more than once, and the final
+    // separator determines the marker's UNION variant.
+    let query = "SELECT a UNION ALL SELECT b \
+                 UNION SELECT a UNION ALL SELECT b \
+                 UNION ALL SELECT a UNION ALL SELECT b";
+    let expected = "select a union all select b /*repeat union all*/";
+
+    let actual = fingerprint(query);
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn repeated_union_sequences_preserve_grouping_semantics() {
+    let cases = [
+        (
+            // Only the repeated suffix is collapsed when an unrelated branch
+            // precedes a multi-SELECT candidate.
+            "SELECT prefix_value FROM t \
+             UNION SELECT a UNION ALL SELECT b \
+             UNION SELECT a UNION ALL SELECT b",
+            "select prefix_value from t union select a union all select b /*repeat union*/",
+        ),
+        (
+            // The separator between copies is independent of UNION operators
+            // contained inside the repeated candidate.
+            "SELECT a UNION SELECT b UNION ALL SELECT a UNION SELECT b",
+            "select a union select b /*repeat union all*/",
+        ),
+        (
+            // Nested UNIONs remain part of the repeated outer SELECT.
+            "SELECT * FROM (SELECT a UNION SELECT b) x \
+             UNION SELECT * FROM (SELECT a UNION SELECT b) x",
+            "select * from (select a union select b) x /*repeat union*/",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
 fn non_repeated_unions_are_preserved() {
     let cases = [
         (
@@ -457,6 +503,12 @@ fn non_repeated_unions_are_preserved() {
         (
             "DELETE FROM t UNION DELETE FROM t",
             "delete from t union delete from t",
+        ),
+        (
+            // Similar SELECT sequences are not repeats when an internal UNION
+            // operator differs.
+            "SELECT a UNION SELECT b UNION SELECT a UNION ALL SELECT b",
+            "select a union select b union select a union all select b",
         ),
     ];
 
@@ -483,6 +535,44 @@ fn repeated_unions_after_a_different_branch_are_collapsed() {
     let expected = "select a from t union select b from t /*repeat union*/";
 
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn repeated_union_uses_the_leftmost_select_anchor() {
+    // Perl anchors on the leftmost `select` and expands the shortest candidate
+    // that repeats. A `select` appearing later in the same branch must not win
+    // just because it is a prefix of the candidate Perl chooses.
+    let cases = [
+        (
+            "select 1 union select a union select a, b \
+             union select 1 union select a union select a, b",
+            "select ? union select a union select a, b /*repeat union*/",
+        ),
+        (
+            "select b Union All select a union select b UNION select a \
+             union select b union all select a union select b union select a \
+             union select b union select a from t",
+            "select b union all select a union select b union select a /*repeat union*/ \
+             union select b union select a from t",
+        ),
+    ];
+
+    for (query, expected) in cases {
+        let actual = fingerprint(query);
+
+        assert_eq!(actual, expected, "query: {query}");
+    }
+}
+
+#[test]
+fn union_anchor_must_include_the_select_keyword() {
+    // The repeated unit always contains `select ` with its trailing whitespace.
+    // `select union select a` has only one whitespace between the leading SELECT
+    // and UNION, so Perl cannot capture a repeat and leaves the query unchanged.
+    let query = "select union select a";
+    let actual = fingerprint(query);
+
+    assert_eq!(actual, query);
 }
 
 #[test]

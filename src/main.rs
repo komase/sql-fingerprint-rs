@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{self, BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, BufWriter, Write},
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -36,6 +36,8 @@ struct Args {
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
+        // Downstream consumers such as `head` may close the pipe after receiving enough output.
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("Error: {error}");
             ExitCode::FAILURE
@@ -50,7 +52,7 @@ fn run() -> io::Result<()> {
         .with_match_md5_checksums(args.match_md5_checksums);
     let fingerprinter = Fingerprinter::new(options);
     let stdout = io::stdout();
-    let mut writer = stdout.lock();
+    let mut writer = BufWriter::new(stdout.lock());
 
     if let Some(query) = args.query.as_deref() {
         let out = fingerprinter.fingerprint(query);
@@ -77,7 +79,7 @@ fn run() -> io::Result<()> {
         let reader = stdin.lock();
         process_reader(reader, &mut writer, &fingerprinter)?;
     }
-    Ok(())
+    writer.flush()
 }
 
 fn process_reader<R: BufRead, W: Write>(

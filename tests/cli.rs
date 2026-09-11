@@ -37,8 +37,7 @@ impl Drop for TempInput {
 
 fn run_cli(args: &[&str]) -> Output {
     // Cargo provides the path to the package binary for integration tests.
-    let binary = std::env::var("CARGO_BIN_EXE_sql-fingerprint")
-        .expect("Cargo should provide the sql-fingerprint binary");
+    let binary = env!("CARGO_BIN_EXE_sql-fingerprint");
     Command::new(binary)
         .args(args)
         .output()
@@ -46,8 +45,7 @@ fn run_cli(args: &[&str]) -> Output {
 }
 
 fn run_cli_with_stdin(args: &[&str], input: &str) -> Output {
-    let binary = std::env::var("CARGO_BIN_EXE_sql-fingerprint")
-        .expect("Cargo should provide the sql-fingerprint binary");
+    let binary = env!("CARGO_BIN_EXE_sql-fingerprint");
     let mut child = Command::new(binary)
         .args(args)
         .stdin(Stdio::piped())
