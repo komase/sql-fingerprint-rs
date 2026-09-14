@@ -19,3 +19,7 @@ unnecessary_semicolon = "warn"
 [[bench]]
 name = "fingerprint"
 harness = false
+
+[profile.release]
+strip = true
+
