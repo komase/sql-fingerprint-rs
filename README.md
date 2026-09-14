@@ -4,8 +4,10 @@ Turn SQL queries into fingerprints: a normalized form where literals become `?`,
 whitespace is collapsed, and keywords are lowercased. Queries that differ only in
 their values then compare equal.
 
-The behavior follows `pt-fingerprint` and is tuned for **MySQL**. It is a
-best-effort string transformation, not a SQL parser, and does not validate syntax.
+The behavior follows
+[`pt-fingerprint`](https://docs.percona.com/percona-toolkit/pt-fingerprint.html)
+and is tuned for **MySQL**. It is a best-effort string transformation, not a SQL
+parser, and does not validate syntax.
 
 ## Example
 
