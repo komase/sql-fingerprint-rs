@@ -4,24 +4,8 @@ Turn SQL queries into fingerprints: a normalized form where literals become `?`,
 whitespace is collapsed, and keywords are lowercased. Queries that differ only in
 their values then compare equal.
 
-## Why this exists
-
-This crate was written to fingerprint slow query logs in AWS Lambda.
-
-The reference implementation is Percona Toolkit's
-[`pt-fingerprint`](https://github.com/percona/percona-toolkit), but it is a Perl
-program. Lambda's managed runtimes do not ship Perl, so running `pt-fingerprint`
-there means building and maintaining a container image with Perl and its database
-dependencies.
-
-This crate performs the same transformation in Rust and compiles to a single
-native binary. That binary can be shipped in a Lambda Layer and called from
-Python or Node.js with `subprocess` / `child_process`, or used on its own as a
-CLI. Rust callers can use the library API directly.
-
-The behaviour is tuned for **MySQL**, matching `pt-fingerprint`. It is a
-best-effort string transformation, not a SQL parser: it does not validate syntax
-and does not try to interpret PostgreSQL or Oracle dialects.
+The behavior follows `pt-fingerprint` and is tuned for **MySQL**. It is a
+best-effort string transformation, not a SQL parser, and does not validate syntax.
 
 ## Example
 
@@ -102,18 +86,6 @@ per-invocation process startup does not meet the latency requirement.
   single `?`.
 - `--match-embedded-numbers`: preserve numbers embedded in identifiers, such as
   `catch22` or `rt_5min`.
-
-## Compatibility
-
-The behavior follows `QueryRewriter::fingerprint()` from Percona Toolkit
-`pt-fingerprint` 3.7.1-4. The fingerprint is not guaranteed to be valid SQL, and
-this is not a masking tool: it does not guarantee that every sensitive value is
-removed.
-
-## References
-
-- Percona Toolkit [`pt-fingerprint`](https://github.com/percona/percona-toolkit)
-- [`cou929/sql-fingerprint-js`](https://github.com/cou929/sql-fingerprint-js)
 
 ## License
 
