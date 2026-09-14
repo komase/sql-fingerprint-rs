@@ -1,0 +1,48 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.*"
+
+permissions:
+  contents: read
+
+jobs:
+  create-release:
+    name: create release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: taiki-e/create-gh-release-action@v1
+
+  upload-assets:
+    name: ${{ matrix.target }}
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-unknown-linux-musl
+          - x86_64-unknown-linux-musl
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: sql-fingerprint-rs
+          target: ${{ matrix.target }}
+          locked: true
+          archive: sql-fingerprint-rs-$tag-$target
+          tar: unix
+          zip: none
+          checksum: sha256
+          include: LICENSE-MIT,LICENSE-APACHE,README.md
