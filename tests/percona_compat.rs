@@ -1,4 +1,4 @@
-use sql_fingerprint::{FingerprintOptions, Fingerprinter, fingerprint};
+use sql_fingerprint_rs::{FingerprintOptions, Fingerprinter, fingerprint};
 
 #[test]
 fn empty_query_returns_empty_string() {

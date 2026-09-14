@@ -16,7 +16,7 @@ impl TempInput {
     fn new(contents: &str) -> Self {
         let sequence = TEMP_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(
-            "sql-fingerprint-cli-{}-{sequence}.sql",
+            "sql-fingerprint-rs-cli-{}-{sequence}.sql",
             std::process::id()
         ));
         fs::write(&path, contents).expect("temporary SQL file should be writable");
@@ -37,7 +37,7 @@ impl Drop for TempInput {
 
 fn run_cli(args: &[&str]) -> Output {
     // Cargo provides the path to the package binary for integration tests.
-    let binary = env!("CARGO_BIN_EXE_sql-fingerprint");
+    let binary = env!("CARGO_BIN_EXE_sql-fingerprint-rs");
     Command::new(binary)
         .args(args)
         .output()
@@ -45,7 +45,7 @@ fn run_cli(args: &[&str]) -> Output {
 }
 
 fn run_cli_with_stdin(args: &[&str], input: &str) -> Output {
-    let binary = env!("CARGO_BIN_EXE_sql-fingerprint");
+    let binary = env!("CARGO_BIN_EXE_sql-fingerprint-rs");
     let mut child = Command::new(binary)
         .args(args)
         .stdin(Stdio::piped())
@@ -414,7 +414,7 @@ fn version_option_prints_package_version() {
     );
     assert_eq!(
         String::from_utf8(output.stdout).expect("stdout should be valid UTF-8"),
-        format!("sql-fingerprint {}\n", env!("CARGO_PKG_VERSION"))
+        format!("sql-fingerprint-rs {}\n", env!("CARGO_PKG_VERSION"))
     );
     assert!(
         output.stderr.is_empty(),
